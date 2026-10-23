@@ -2,6 +2,9 @@
 
 A userscript that shows the progress of the weekly club missions **per member** in a sortable table on the GeoGuessr club page.
 
+<img src="images/Button.jpg" alt="Screenshot der Tabelle" width="800">
+<img src="images/Table.jpg" alt="Screenshot der Tabelle" width="800">
+
 ## Features
 
 - Overview of every club member's weekly mission activity
