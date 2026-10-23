@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name         LOCAL - GeoGuessr Weekly Club Mission Overview
+// @name         GeoGuessr Weekly Club Mission Overview
 // @namespace    https://www.geoguessr.com/
 // @version      1.6
 // @description  Shows current status of the weekly mission progress per member
