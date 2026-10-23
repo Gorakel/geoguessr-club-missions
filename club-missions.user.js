@@ -3,7 +3,9 @@
 // @namespace    https://www.geoguessr.com/
 // @version      1.7
 // @description  Shows current status of the weekly mission progress per member
+// @author       Gorakel
 // @match        https://www.geoguessr.com/*
+// @icon         https://www.google.com/s2/favicons?sz=64&domain=geoguessr.com
 // @grant        none
 // @license      MIT
 // @run-at       document-idle
