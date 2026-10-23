@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         GeoGuessr Weekly Club Mission Overview
 // @namespace    https://www.geoguessr.com/
-// @version      1.7
+// @version      1.8
 // @description  Shows current status of the weekly mission progress per member
 // @author       Gorakel
 // @match        https://www.geoguessr.com/*
@@ -9,8 +9,6 @@
 // @grant        none
 // @license      MIT
 // @run-at       document-idle
-// @downloadURL  https://update.greasyfork.org/scripts/601242/GeoGuessr%20Weekly%20Club%20Mission%20Overview.user.js
-// @updateURL    https://update.greasyfork.org/scripts/601242/GeoGuessr%20Weekly%20Club%20Mission%20Overview.meta.js
 // ==/UserScript==
 
 (function () {
