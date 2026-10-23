@@ -7,6 +7,8 @@
 // @grant        none
 // @license      MIT
 // @run-at       document-idle
+// @downloadURL  https://update.greasyfork.org/scripts/601242/GeoGuessr%20Weekly%20Club%20Mission%20Overview.user.js
+// @updateURL    https://update.greasyfork.org/scripts/601242/GeoGuessr%20Weekly%20Club%20Mission%20Overview.meta.js
 // ==/UserScript==
 
 (function () {
