@@ -63,6 +63,8 @@ The script reads two GeoGuessr endpoints using your existing browser session. No
 
 - The script depends on undocumented GeoGuessr API responses. If GeoGuessr changes them, the script may stop working until it is updated.
 - This is a fan project and is not affiliated with GeoGuessr.
+- Code was converted to js via Claude Sonnet 5.5.
+- Readme was created with help of Claude Sonnet 5.5.
 
 ## License
 
