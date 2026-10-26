@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         GeoGuessr Weekly Club Mission Overview
 // @namespace    https://www.geoguessr.com/
-// @version      1.8
+// @version      1.9
 // @description  Shows current status of the weekly mission progress per member
 // @author       Gorakel
 // @match        https://www.geoguessr.com/*
@@ -17,7 +17,7 @@
     // =========================================================
     // 1. Settings
     // =========================================================
-    const WEEKLY_MAX_XP = 280;
+    // const WEEKLY_MAX_XP = 280;
     const DAILY_XP = 20;
     // const RESET_HOUR = 13; // Tageswechsel um 13:00 Uhr (lokale Zeit)
     // const LOW_START_HOUR = 1;
@@ -133,8 +133,9 @@
         // lowStart.setHours(LOW_START_HOUR, 0, 0, 0);
         lowStart.setUTCHours(0, 0, 0, 0);
         const lowPhase = now >= lowStart && now < nextReset;
-        const weeklyMax = WEEKLY_MAX_XP - (lowPhase ? DAILY_XP : 0);
         const boardCount = (board.boards || []).length;
+        const weeklyMaxXp = 140 + boardCount * 20;
+        const weeklyMax = weeklyMaxXp - (lowPhase ? DAILY_XP : 0);
         // const needed = Math.min(expectedClaims(now), boardCount);
         const needed = Math.min(expectedClaims(stichtag), boardCount);
 
