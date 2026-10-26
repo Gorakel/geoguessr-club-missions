@@ -138,7 +138,7 @@
         // const weeklyMax = weeklyMaxXp - (lowPhase ? DAILY_XP : 0);
         const periodEnd = parseDate(board.periodEnd);
         let weeklyMaxXp = WEEKLY_MAX_XP;
-        if (board.allBoardsCleared) {
+        if (board.allBoardsCleared && periodEnd) {
             let lastClaim = null;
             for (const b of board.boards || []) {
                 for (const tile of b.tiles || []) {
@@ -146,10 +146,15 @@
                     if (t && (!lastClaim || t > lastClaim)) lastClaim = t;
                 }
             }
-            if (lastClaim && periodEnd && lastClaim < periodEnd) {
+            if (lastClaim && lastClaim < periodEnd) {
+                const DAY = 24 * 3600 * 1000;
                 const ref = now < periodEnd ? now : periodEnd;
-                const days = Math.max(0, Math.floor((ref - lastClaim) / (24 * 3600 * 1000)));
-                weeklyMaxXp = Math.max(0, WEEKLY_MAX_XP - days * DAILY_XP);
+                // Grenzen b_k = periodEnd - k*DAY mit lastClaim < b_k <= ref
+                const steps = Math.max(
+                    0,
+                    Math.ceil((periodEnd - lastClaim) / DAY) - Math.ceil((periodEnd - ref) / DAY)
+                );
+                weeklyMaxXp = Math.max(0, WEEKLY_MAX_XP - steps * DAILY_XP);
             }
         }
         const weeklyMax = weeklyMaxXp - (lowPhase ? DAILY_XP : 0);
