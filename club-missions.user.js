@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         GeoGuessr Weekly Club Mission Overview
 // @namespace    https://www.geoguessr.com/
-// @version      1.10
+// @version      1.11
 // @description  Shows current status of the weekly mission progress per member
 // @author       Gorakel
 // @match        https://www.geoguessr.com/*
@@ -17,17 +17,18 @@
     // =========================================================
     // 1. Settings
     // =========================================================
-    const WEEKLY_MAX_XP = 280;
-    const DAILY_XP = 20;
-    // const RESET_HOUR = 13; // Tageswechsel um 13:00 Uhr (lokale Zeit)
-    // const LOW_START_HOUR = 1;
+    const WEEKLY_MAX_XP = 280;       // XP a member can earn per week at most
+    const DAILY_XP = 20;             // XP a member gets per day
+    const DAY_MS = 24 * 3600 * 1000; // One day in milliseconds
 
     // =========================================================
-    // 2. API-Access (Session-Cookie of the browser)
+    // 2. API access (uses the session cookie of the browser)
     // =========================================================
-    async function getJson(path) {
+
+    // Fetches a GeoGuessr API path and returns the parsed JSON.
+    async function fetchJson(path) {
         const res = await fetch(path, {
-            credentials: 'include',
+            credentials: 'include',            // send the login cookie along
             headers: { Accept: 'application/json' },
         });
         if (!res.ok) throw new Error(`${path} -> HTTP ${res.status}`);
@@ -35,172 +36,188 @@
     }
 
     // =========================================================
-    // 3. Analysis
+    // 3. Helpers
     // =========================================================
+
+    // Converts a value into a Date. Returns null for empty or invalid input.
     function parseDate(value) {
-        if (!value) return null;
-        const d = new Date(value);
-        return isNaN(d) ? null : d;
+        const d = value ? new Date(value) : null;
+        return d && !isNaN(d) ? d : null;
     }
 
-    // function getStichtag(now) {
-    //     const s = new Date(now);
-    //     s.setHours(RESET_HOUR, 0, 0, 0);
-    //     if (now < s) s.setDate(s.getDate() - 1);
-    //     return s;
-    // }
+    // Returns the later of two dates; either one may be null.
+    // Short form of: if (!b) return a; if (!a) return b; return b > a ? b : a;
+    const latest = (a, b) => (b && (!a || b > a) ? b : a);
 
-    // function expectedClaims(now) {
-    //     const shifted = new Date(now.getTime() - RESET_HOUR * 3600 * 1000);
-    //     const dowMonday0 = (shifted.getDay() + 6) % 7; // Mo=0 ... So=6
-    //     return ((dowMonday0 + 5) % 7) + 1;
-    // }
-    function expectedClaims(lastReset) {
-        const dowMonday0 = (lastReset.getDay() + 6) % 7; // Mo=0 ... So=6
-        return ((dowMonday0 + 5) % 7) + 1;
+    // How many boards a member must have claimed so far this week.
+    // dayStart = start of the current mission day (the last daily reset).
+    // The mission week starts on Saturday, so:
+    //   Sat -> 1, Sun -> 2, Mon -> 3, Tue -> 4, Wed -> 5, Thu -> 6, Fri -> 7
+    // Simplified: the original "(Monday-based weekday + 5) % 7 + 1" collapses to
+    // "(JS weekday + 4) % 7 + 1" (JS weekday: Sun = 0 ... Sat = 6).
+    function expectedClaims(dayStart) {
+        return ((dayStart.getDay() + 4) % 7) + 1;
     }
 
-    function getClubId() {
+    // Reads the club ID of the logged-in user from the page data embedded by Next.js.
+    function findClubId() {
         try {
             const el = document.getElementById('__NEXT_DATA__');
             if (!el) return null;
             const data = JSON.parse(el.textContent);
+            // The ID can live in different places depending on the page, so try all of them.
             const candidates = [
                 data?.props?.pageProps?.accountProps?.account?.user?.club?.clubId,
                 data?.props?.accountProps?.account?.user?.club?.clubId,
                 data?.props?.pageProps?.dehydratedState?.queries
                     ?.find((q) => q?.queryKey?.[0] === 'clubs')?.state?.data?.club?.clubId,
             ];
-            return candidates.find(Boolean) || null;
+            return candidates.find(Boolean) || null; // first non-empty value, else null
         } catch (err) {
-            console.error('Club-ID konnte nicht gelesen werden:', err);
+            console.error('Could not read club ID:', err);
             return null;
         }
     }
 
-    async function loadData() {
-        const clubId = getClubId();
+    // =========================================================
+    // 4. Analysis: builds one table row per club member
+    // =========================================================
+
+    async function loadMemberRows() {
+        const clubId = findClubId();
         if (!clubId) {
             throw new Error('Club-ID nicht gefunden - bitte Seite mit F5 neu laden');
         }
 
+        // Load member list and mission board in parallel.
         const [members, board] = await Promise.all([
-            getJson(`/api/v4/clubs/${clubId}/members`),
-            getJson('/api/v4/missions/club/board'),
+            fetchJson(`/api/v4/clubs/${clubId}/members`),
+            fetchJson('/api/v4/missions/club/board'),
         ]);
 
-        // const newEntry = () => ({ claimed: 0, completed: 0, helped: 0, last: null });
-        const newEntry = () => ({ claimed: 0, helped: 0, last: null });
-        const byUser = new Map();
-        for (const b of board.boards || []) {
-            for (const tile of b.tiles || []) {
+        const boards = board.boards ?? []; // Short form of: board.boards || []
+
+        // ---------------------------------------------------------
+        // Step 1: go through all tiles once and collect per-user stats
+        // ---------------------------------------------------------
+        const statsByUserId = new Map(); // userId -> { claimed, helped, last }
+        const emptyStats = () => ({ claimed: 0, helped: 0, last: null });
+        // Gets the stats of a user or creates an empty entry on first access.
+        const statsOf = (userId) => {
+            if (!statsByUserId.has(userId)) statsByUserId.set(userId, emptyStats());
+            return statsByUserId.get(userId);
+        };
+
+        let lastClaimOverall = null; // newest claim of ANY user (needed for the weekly max below)
+
+        for (const b of boards) {
+            for (const tile of b.tiles ?? []) {
                 if (!tile) continue;
 
-                // Helpers: every user listed in tile.helpers gets +1 "Helped"
-                for (const helperId of tile.helpers || []) {
-                    if (!helperId) continue;
-                    const h = byUser.get(helperId) || newEntry();
-                    h.helped++;
-                    byUser.set(helperId, h);
+                // Everyone listed as helper gets +1 "Helped".
+                for (const helperId of tile.helpers ?? []) {
+                    if (helperId) statsOf(helperId).helped++;
                 }
 
+                // Remember the newest claim time across all tiles.
+                const claimedAt = parseDate(tile.claimedAt);
+                lastClaimOverall = latest(lastClaimOverall, claimedAt);
+
+                // Count the claim for the user who claimed the tile.
                 if (!tile.claimedBy) continue;
-                const e = byUser.get(tile.claimedBy) || newEntry();
-                e.claimed++;
-                // if (tile.completed === true) e.completed++;
-                const t = parseDate(tile.claimedAt);
-                if (t && (!e.last || t > e.last)) e.last = t;
-                byUser.set(tile.claimedBy, e);
+                const stats = statsOf(tile.claimedBy);
+                stats.claimed++;
+                stats.last = latest(stats.last, claimedAt); // newest claim of this user
             }
         }
 
+        // ---------------------------------------------------------
+        // Step 2: work out the time window of the current mission day
+        // ---------------------------------------------------------
         const now = new Date();
-        // let nextReset = parseDate(board.you?.nextDayAt);
-        const nextReset = parseDate(board.you?.nextDayAt);
-        // if (!nextReset) {
-        //     nextReset = new Date(now);
-        //     nextReset.setHours(RESET_HOUR, 0, 0, 0);
-        //     if (nextReset <= now) nextReset.setDate(nextReset.getDate() + 1);
-        // }
-        if (!nextReset) {
+        // The API tells us when the next daily reset happens.
+        const nextDayStart = parseDate(board.you?.nextDayAt);
+        if (!nextDayStart) {
             throw new Error('nextDayAt fehlt in der Board-Antwort');
         }
-        // const stichtag = getStichtag(now);
-        const stichtag = new Date(nextReset.getTime() - 24 * 3600 * 1000);
-        // const hour = now.getHours();
-        // const lowPhase = hour >= LOW_START_HOUR && hour < RESET_HOUR;
-        const lowStart = new Date(nextReset);
-        // lowStart.setHours(LOW_START_HOUR, 0, 0, 0);
-        lowStart.setUTCHours(0, 0, 0, 0);
-        const lowPhase = now >= lowStart && now < nextReset;
-        const boardCount = (board.boards || []).length;
-        // const weeklyMaxXp = 140 + boardCount * 20;
-        // const weeklyMax = weeklyMaxXp - (lowPhase ? DAILY_XP : 0);
-        const periodEnd = parseDate(board.periodEnd);
-        let weeklyMaxXp = WEEKLY_MAX_XP;
-        if (board.allBoardsCleared && periodEnd) {
-            let lastClaim = null;
-            for (const b of board.boards || []) {
-                for (const tile of b.tiles || []) {
-                    const t = tile && parseDate(tile.claimedAt);
-                    if (t && (!lastClaim || t > lastClaim)) lastClaim = t;
-                }
-            }
-            if (lastClaim && lastClaim < periodEnd) {
-                const DAY = 24 * 3600 * 1000;
-                const ref = now < periodEnd ? now : periodEnd;
-                // Grenzen b_k = periodEnd - k*DAY mit lastClaim < b_k <= ref
-                const steps = Math.max(
-                    0,
-                    Math.ceil((periodEnd - lastClaim) / DAY) - Math.ceil((periodEnd - ref) / DAY)
-                );
-                weeklyMaxXp = Math.max(0, WEEKLY_MAX_XP - steps * DAILY_XP);
-            }
-        }
-        const weeklyMax = weeklyMaxXp - (lowPhase ? DAILY_XP : 0);
-        // const needed = Math.min(expectedClaims(now), boardCount);
-        const needed = Math.min(expectedClaims(stichtag), boardCount);
+        // The current mission day started exactly 24h before the next reset.
+        const currentDayStart = new Date(nextDayStart.getTime() - DAY_MS);
 
+        // "Low XP phase": from 00:00 UTC until the next reset the daily XP of
+        // the new day is not yet credited, so the target is reduced by one day.
+        const lowXpPhaseStart = new Date(nextDayStart);
+        lowXpPhaseStart.setUTCHours(0, 0, 0, 0);
+        const isLowXpPhase = now >= lowXpPhaseStart && now < nextDayStart;
+
+        // ---------------------------------------------------------
+        // Step 3: determine the XP a member can reach at most this week
+        // ---------------------------------------------------------
+        let weeklyMaxXp = WEEKLY_MAX_XP;
+        const periodEnd = parseDate(board.periodEnd);
+
+        // If all boards are cleared early, the remaining days no longer give XP.
+        // Every day boundary that lies between the last claim and "now"
+        // (or the period end, whichever is earlier) costs DAILY_XP.
+        if (board.allBoardsCleared && periodEnd && lastClaimOverall && lastClaimOverall < periodEnd) {
+            const reference = now < periodEnd ? now : periodEnd;
+            // Boundaries are periodEnd - k * DAY, counted if: lastClaim < boundary <= reference
+            const lostDays = Math.max(
+                0,
+                Math.ceil((periodEnd - lastClaimOverall) / DAY_MS) -
+                Math.ceil((periodEnd - reference) / DAY_MS)
+            );
+            weeklyMaxXp = Math.max(0, WEEKLY_MAX_XP - lostDays * DAILY_XP);
+        }
+        const weeklyXpTarget = weeklyMaxXp - (isLowXpPhase ? DAILY_XP : 0);
+
+        // How many claims a member needs by now (can never exceed the number of boards).
+        const requiredClaims = Math.min(expectedClaims(currentDayStart), boards.length);
+
+        // ---------------------------------------------------------
+        // Step 4: build one row per member
+        // ---------------------------------------------------------
         const rows = members.map((m) => {
-            const userId = m.user && m.user.userId;
-            const agg = byUser.get(userId) || newEntry();
+            const stats = statsByUserId.get(m.user?.userId) ?? emptyStats();
+            const lastActive = parseDate(m.lastActive);
+            const weeklyXp = m.weeklyXp ?? 0;
+            // Helper for the Yes/No columns.
+            const yesNo = (condition) => (condition ? 'Yes' : 'No');
             return {
-                User: (m.user && m.user.nick) || '?',
-                'Active Today': (() => {
-                    const la = parseDate(m.lastActive);
-                    return la && la > stichtag ? 'Yes' : 'No';
-                })(),
-                'Claimed Today': agg.last && agg.last > stichtag ? 'Yes' : 'No',
-                'Max Claimed': needed <= agg.claimed ? 'Yes' : 'No',
-                Claimed: agg.claimed,
-                // Completed: agg.completed,
-                Helped: agg.helped,
-                'Weekly XP': m.weeklyXp ?? 0,
-                'Weekly Max': (m.weeklyXp ?? 0) >= weeklyMax ? 'Yes' : 'No',
-                _last: agg.last,
+                User: m.user?.nick || '?',
+                'Active Today': yesNo(lastActive && lastActive > currentDayStart),
+                'Claimed Today': yesNo(stats.last && stats.last > currentDayStart),
+                'Max Claimed': yesNo(stats.claimed >= requiredClaims),
+                Claimed: stats.claimed,
+                Helped: stats.helped,
+                'Weekly XP': weeklyXp,
+                'Weekly Max': yesNo(weeklyXp >= weeklyXpTarget),
+                _last: stats.last, // internal only, used for sorting (not shown)
             };
         });
 
-        const yesFirst = (field) => (a, b) =>
-            (b[field] === 'Yes') - (a[field] === 'Yes');
-        const noFirst = (field) => (a, b) =>
-            (b[field] === 'No') - (a[field] === 'No');
-        const byLastClaim = (a, b) =>
-            (b._last?.getTime() ?? -Infinity) - (a._last?.getTime() ?? -Infinity);
+        // ---------------------------------------------------------
+        // Step 5: default sort order (the first rule that differs wins)
+        // ---------------------------------------------------------
+        // Rows with 'Yes' in the given column go first
+        // (booleans become 0/1 in the subtraction).
+        const yesFirst = (field) => (a, b) => (b[field] === 'Yes') - (a[field] === 'Yes');
+        // Higher numbers first.
         const highestFirst = (field) => (a, b) => (b[field] ?? 0) - (a[field] ?? 0);
-        const SORT_ORDER = [
+        // Most recent claim first; users without a claim go last.
+        const newestClaimFirst = (a, b) => (b._last?.getTime() ?? 0) - (a._last?.getTime() ?? 0);
+
+        const SORT_RULES = [
             yesFirst('Claimed Today'),
-            // noFirst('Claimed Today'),
             yesFirst('Max Claimed'),
             yesFirst('Weekly Max'),
             yesFirst('Active Today'),
             highestFirst('Helped'),
-            byLastClaim,
+            newestClaimFirst,
         ];
         rows.sort((a, b) => {
-            for (const cmp of SORT_ORDER) {
-                const r = cmp(a, b);
-                if (r !== 0) return r;
+            for (const rule of SORT_RULES) {
+                const result = rule(a, b);
+                if (result !== 0) return result;
             }
             return 0;
         });
@@ -208,19 +225,21 @@
     }
 
     // =========================================================
-    // 4. UI
+    // 5. UI
     // =========================================================
-    // const COLUMNS = ['User', 'Active Today', 'Claimed Today', 'Max Claimed', 'Claimed', 'Completed', 'Helped', 'Weekly XP', 'Weekly Max'];
     const COLUMNS = ['User', 'Active Today', 'Claimed Today', 'Claimed', 'Max Claimed', 'Helped', 'Weekly XP', 'Weekly Max'];
 
-    const pad = (n) => String(n).padStart(2, '0');
-    // Date/Time as YYYY-MM-DD HH:MM (local time)
-    const fmtDate = (d) =>
+    const pad = (n) => String(n).padStart(2, '0'); // 5 -> "05"
+    // Date/time as YYYY-MM-DD HH:MM (local time)
+    const formatDate = (d) =>
         `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 
-    const fmt = (v) =>
-        v instanceof Date ? fmtDate(v) : v == null ? '' : String(v);
+    // Turns any cell value into display text.
+    // Short form of: if (v instanceof Date) return formatDate(v); if (v == null) return ''; return String(v);
+    const formatCell = (v) =>
+        v instanceof Date ? formatDate(v) : v == null ? '' : String(v);
 
+    // Injects the CSS for the button and the overlay (once).
     function addStyles() {
         const css = document.createElement('style');
         css.id = 'gcm-style';
@@ -243,94 +262,112 @@
         document.head.appendChild(css);
     }
 
-    function renderTable(rows, state, tableWrap) {
-        const { col, dir } = state;
+    // Draws the table into `container`.
+    // sortState = { col, dir } where dir is 1 (ascending) or -1 (descending).
+    function renderTable(rows, sortState, container) {
+        // Sort by the clicked column (if any).
+        const { col, dir } = sortState;
         if (col) {
             rows = [...rows].sort((a, b) => {
                 const x = a[col] instanceof Date ? a[col].getTime() : a[col];
                 const y = b[col] instanceof Date ? b[col].getTime() : b[col];
-                if (x == null) return 1;
+                if (x == null) return 1;  // empty values always go to the bottom
                 if (y == null) return -1;
                 return (x > y ? 1 : x < y ? -1 : 0) * dir;
             });
         }
+
         const table = document.createElement('table');
-        const head = table.createTHead().insertRow();
+
+        // --- Header row: clicking a header sorts by that column ---
+        const headRow = table.createTHead().insertRow();
         for (const c of COLUMNS) {
             const th = document.createElement('th');
-            th.textContent = c + (state.col === c ? (state.dir === 1 ? ' ▲' : ' ▼') : '');
+            th.textContent = c + (sortState.col === c ? (sortState.dir === 1 ? ' ▲' : ' ▼') : '');
             th.onclick = () => {
-                state.dir = state.col === c ? -state.dir : 1;
-                state.col = c;
-                renderTable(rows, state, tableWrap);
+                // Same column again -> flip direction, new column -> ascending.
+                sortState.dir = sortState.col === c ? -sortState.dir : 1;
+                sortState.col = c;
+                renderTable(rows, sortState, container);
             };
-            head.appendChild(th);
+            headRow.appendChild(th);
         }
+
+        // --- Body: one row per member, Yes/No cells get a color class ---
         const body = table.createTBody();
         for (const r of rows) {
             const tr = body.insertRow();
             for (const c of COLUMNS) {
                 const td = tr.insertCell();
-                td.textContent = fmt(r[c]);
+                td.textContent = formatCell(r[c]);
                 if (r[c] === 'Yes') td.className = 'yes';
                 if (r[c] === 'No') td.className = 'no';
             }
         }
 
+        // --- Summary row (sticks below the header) ---
         const countYes = (field) => rows.filter((r) => r[field] === 'Yes').length;
-        const sum = (field) => rows.reduce((s, r) => s + (Number(r[field]) || 0), 0);
+        const sum = (field) => rows.reduce((total, r) => total + (Number(r[field]) || 0), 0);
         const totals = {
             User: 'Overview',
             'Active Today': countYes('Active Today'),
             'Claimed Today': countYes('Claimed Today'),
             'Max Claimed': countYes('Max Claimed'),
             Claimed: sum('Claimed'),
-            // Completed: sum('Completed'),
             Helped: sum('Helped'),
             'Weekly Max': countYes('Weekly Max'),
         };
         const sumRow = table.tHead.insertRow();
         sumRow.className = 'gcm-sum';
         for (const c of COLUMNS) {
-            sumRow.insertCell().textContent = fmt(totals[c]);
+            sumRow.insertCell().textContent = formatCell(totals[c]);
         }
 
-        tableWrap.replaceChildren(table);
+        container.replaceChildren(table);
 
-
+        // Position the summary row directly below the header
+        // (can only be measured once the table is in the DOM).
         const headHeight = table.tHead.rows[0].offsetHeight;
         for (const cell of sumRow.cells) cell.style.top = headHeight + 'px';
     }
 
+    // Opens the overlay with the table, reload button and CSV export.
     async function openPanel() {
-        if (document.getElementById('gcm-overlay')) return;
+        if (document.getElementById('gcm-overlay')) return; // already open
+
         const overlay = document.createElement('div');
         overlay.id = 'gcm-overlay';
         overlay.innerHTML = `<div id="gcm-box"><h2><span>Weekly Club Missions</span><span>
             <button id="gcm-refresh">Refresh</button><button id="gcm-csv">CSV</button><button id="gcm-close">Close</button></span></h2>
             <div id="gcm-table">Loading…</div></div>`;
         document.body.appendChild(overlay);
+
+        // Close via the button or by clicking on the dark background.
         overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
         overlay.querySelector('#gcm-close').onclick = () => overlay.remove();
 
-        const wrap = overlay.querySelector('#gcm-table');
-        let current = [];
-        const state = { col: null, dir: 1 };
+        const container = overlay.querySelector('#gcm-table');
+        let currentRows = [];                       // latest loaded data (also used for the CSV)
+        const sortState = { col: null, dir: 1 };    // col = null -> keep the default sort order
 
+        // Loads fresh data and draws the table (also used by the Refresh button).
         const load = async () => {
-            wrap.textContent = 'Loading…';
+            container.textContent = 'Loading…';
             try {
-                current = await loadData();
-                renderTable(current, state, wrap);
+                currentRows = await loadMemberRows();
+                renderTable(currentRows, sortState, container);
             } catch (err) {
-                wrap.textContent = 'Fehler: ' + err.message + ' (bist du eingeloggt und Mitglied im Club?)';
+                container.textContent = 'Fehler: ' + err.message + ' (bist du eingeloggt und Mitglied im Club?)';
             }
         };
 
         overlay.querySelector('#gcm-refresh').onclick = load;
+
+        // CSV export: semicolon separated, all cells quoted, BOM so Excel detects UTF-8.
         overlay.querySelector('#gcm-csv').onclick = () => {
+            const quote = (v) => `"${formatCell(v).replace(/"/g, '""')}"`; // escape " as ""
             const lines = [COLUMNS.join(';')].concat(
-                current.map((r) => COLUMNS.map((c) => `"${fmt(r[c]).replace(/"/g, '""')}"`).join(';'))
+                currentRows.map((r) => COLUMNS.map((c) => quote(r[c])).join(';'))
             );
             const blob = new Blob(['\ufeff' + lines.join('\n')], { type: 'text/csv;charset=utf-8' });
             const a = document.createElement('a');
@@ -344,14 +381,17 @@
     }
 
     // =========================================================
-    // 5. Button
+    // 6. Button (only shown on the "My club" page)
     // =========================================================
-    const isTargetPage = () => /^(\/[a-z]{2}(-[A-Za-z]{2,4})?)?\/clubs\/my\/?$/.test(location.pathname);
 
+    // Matches /clubs/my, optionally with a language prefix like /en or /pt-BR.
+    const isClubPage = () => /^(\/[a-z]{2}(-[A-Za-z]{2,4})?)?\/clubs\/my\/?$/.test(location.pathname);
+
+    // Adds or removes the button depending on the current page.
     function updateButton() {
         const btn = document.getElementById('gcm-btn');
-        if (isTargetPage()) {
-            if (btn) return;
+        if (isClubPage()) {
+            if (btn) return; // already there
             if (!document.getElementById('gcm-style')) addStyles();
             const b = document.createElement('button');
             b.id = 'gcm-btn';
@@ -359,12 +399,14 @@
             b.onclick = openPanel;
             document.body.appendChild(b);
         } else {
-            if (btn) btn.remove();
-            const overlay = document.getElementById('gcm-overlay');
-            if (overlay) overlay.remove();
+            // Left the club page: clean up button and overlay.
+            btn?.remove();
+            document.getElementById('gcm-overlay')?.remove();
         }
     }
 
+    // GeoGuessr is a single-page app: page changes do not reload the page.
+    // We wrap pushState/replaceState so we get notified about URL changes.
     for (const method of ['pushState', 'replaceState']) {
         const original = history[method];
         history[method] = function () {
@@ -374,8 +416,8 @@
         };
     }
     window.addEventListener('gcm-urlchange', updateButton);
-    window.addEventListener('popstate', updateButton);
-    setInterval(updateButton, 1000);
+    window.addEventListener('popstate', updateButton); // browser back/forward
+    setInterval(updateButton, 1000);                   // safety net in case an event is missed
 
     updateButton();
 })();
