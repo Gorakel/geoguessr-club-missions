@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         GeoGuessr Weekly Club Mission Overview
 // @namespace    https://www.geoguessr.com/
-// @version      1.9
+// @version      1.10
 // @description  Shows current status of the weekly mission progress per member
 // @author       Gorakel
 // @match        https://www.geoguessr.com/*
@@ -17,7 +17,7 @@
     // =========================================================
     // 1. Settings
     // =========================================================
-    // const WEEKLY_MAX_XP = 280;
+    const WEEKLY_MAX_XP = 280;
     const DAILY_XP = 20;
     // const RESET_HOUR = 13; // Tageswechsel um 13:00 Uhr (lokale Zeit)
     // const LOW_START_HOUR = 1;
@@ -134,7 +134,24 @@
         lowStart.setUTCHours(0, 0, 0, 0);
         const lowPhase = now >= lowStart && now < nextReset;
         const boardCount = (board.boards || []).length;
-        const weeklyMaxXp = 140 + boardCount * 20;
+        // const weeklyMaxXp = 140 + boardCount * 20;
+        // const weeklyMax = weeklyMaxXp - (lowPhase ? DAILY_XP : 0);
+        const periodEnd = parseDate(board.periodEnd);
+        let weeklyMaxXp = WEEKLY_MAX_XP;
+        if (board.allBoardsCleared) {
+            let lastClaim = null;
+            for (const b of board.boards || []) {
+                for (const tile of b.tiles || []) {
+                    const t = tile && parseDate(tile.claimedAt);
+                    if (t && (!lastClaim || t > lastClaim)) lastClaim = t;
+                }
+            }
+            if (lastClaim && periodEnd && lastClaim < periodEnd) {
+                const ref = now < periodEnd ? now : periodEnd;
+                const days = Math.max(0, Math.floor((ref - lastClaim) / (24 * 3600 * 1000)));
+                weeklyMaxXp = Math.max(0, WEEKLY_MAX_XP - days * DAILY_XP);
+            }
+        }
         const weeklyMax = weeklyMaxXp - (lowPhase ? DAILY_XP : 0);
         // const needed = Math.min(expectedClaims(now), boardCount);
         const needed = Math.min(expectedClaims(stichtag), boardCount);
