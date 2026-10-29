@@ -90,9 +90,10 @@
         }
 
         // Load member list and mission board in parallel.
-        const [members, board] = await Promise.all([
+        const [members, board, previous] = await Promise.all([
             fetchJson(`/api/v4/clubs/${clubId}/members`),
             fetchJson('/api/v4/missions/club/board'),
+            fetchJson('/api/v4/missions/club/board/previous'),
         ]);
 
         const boards = board.boards ?? []; // Short form of: board.boards || []
