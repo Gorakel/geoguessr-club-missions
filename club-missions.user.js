@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         GeoGuessr Weekly Club Mission Overview
 // @namespace    https://www.geoguessr.com/
-// @version      2.0.2
+// @version      2.0.3
 // @description  Shows current status of the weekly mission progress per member
 // @author       Gorakel
 // @match        https://www.geoguessr.com/*
@@ -146,9 +146,9 @@
 
         // "Low XP phase": from 00:00 UTC until the next reset the daily XP of
         // the new day is not yet credited, so the target is reduced by one day.
-        const lowXpPhaseStart = new Date(nextDayStart);
-        lowXpPhaseStart.setUTCHours(0, 0, 0, 0);
-        const isLowXpPhase = now >= lowXpPhaseStart && now < nextDayStart;
+        // const lowXpPhaseStart = new Date(nextDayStart);
+        // lowXpPhaseStart.setUTCHours(0, 0, 0, 0);
+        // const isLowXpPhase = now >= lowXpPhaseStart && now < nextDayStart;
 
         // ---------------------------------------------------------
         // Step 3: determine the XP a member can reach at most this week
@@ -169,7 +169,7 @@
             );
             weeklyMaxXp = Math.max(0, WEEKLY_MAX_XP - lostDays * DAILY_XP);
         }
-        const weeklyXpTarget = weeklyMaxXp - (isLowXpPhase ? DAILY_XP : 0);
+        // const weeklyXpTarget = weeklyMaxXp - (isLowXpPhase ? DAILY_XP : 0);
 
         // How many claims a member needs by now (can never exceed the number of boards).
         const requiredClaims = Math.min(expectedClaims(currentDayStart), boards.length);
