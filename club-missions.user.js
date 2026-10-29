@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         GeoGuessr Weekly Club Mission Overview
 // @namespace    https://www.geoguessr.com/
-// @version      2.0.1
+// @version      2.0.2
 // @description  Shows current status of the weekly mission progress per member
 // @author       Gorakel
 // @match        https://www.geoguessr.com/*
