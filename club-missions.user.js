@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         GeoGuessr Weekly Club Mission Overview
 // @namespace    https://www.geoguessr.com/
-// @version      2.0.3
+// @version      2.0.4
 // @description  Shows current status of the weekly mission progress per member
 // @author       Gorakel
 // @match        https://www.geoguessr.com/*
@@ -109,7 +109,7 @@
             return statsByUserId.get(userId);
         };
 
-        let lastClaimOverall = null; // newest claim of ANY user (needed for the weekly max below)
+        // let lastClaimOverall = null; // newest claim of ANY user (needed for the weekly max below)
 
         for (const b of boards) {
             for (const tile of b.tiles ?? []) {
@@ -122,7 +122,7 @@
 
                 // Remember the newest claim time across all tiles.
                 const claimedAt = parseDate(tile.claimedAt);
-                lastClaimOverall = latest(lastClaimOverall, claimedAt);
+                // lastClaimOverall = latest(lastClaimOverall, claimedAt);
 
                 // Count the claim for the user who claimed the tile.
                 if (!tile.claimedBy) continue;
@@ -135,7 +135,7 @@
         // ---------------------------------------------------------
         // Step 2: work out the time window of the current mission day
         // ---------------------------------------------------------
-        const now = new Date();
+        // const now = new Date();
         // The API tells us when the next daily reset happens.
         const nextDayStart = parseDate(board.you?.nextDayAt);
         if (!nextDayStart) {
@@ -153,22 +153,22 @@
         // ---------------------------------------------------------
         // Step 3: determine the XP a member can reach at most this week
         // ---------------------------------------------------------
-        let weeklyMaxXp = WEEKLY_MAX_XP;
-        const periodEnd = parseDate(board.periodEnd);
+        // let weeklyMaxXp = WEEKLY_MAX_XP;
+        // const periodEnd = parseDate(board.periodEnd);
 
-        // If all boards are cleared early, the remaining days no longer give XP.
-        // Every day boundary that lies between the last claim and "now"
-        // (or the period end, whichever is earlier) costs DAILY_XP.
-        if (board.allBoardsCleared && periodEnd && lastClaimOverall && lastClaimOverall < periodEnd) {
-            const reference = now < periodEnd ? now : periodEnd;
-            // Boundaries are periodEnd - k * DAY, counted if: lastClaim < boundary <= reference
-            const lostDays = Math.max(
-                0,
-                Math.ceil((periodEnd - lastClaimOverall) / DAY_MS) -
-                Math.ceil((periodEnd - reference) / DAY_MS)
-            );
-            weeklyMaxXp = Math.max(0, WEEKLY_MAX_XP - lostDays * DAILY_XP);
-        }
+        // // If all boards are cleared early, the remaining days no longer give XP.
+        // // Every day boundary that lies between the last claim and "now"
+        // // (or the period end, whichever is earlier) costs DAILY_XP.
+        // if (board.allBoardsCleared && periodEnd && lastClaimOverall && lastClaimOverall < periodEnd) {
+        //     const reference = now < periodEnd ? now : periodEnd;
+        //     // Boundaries are periodEnd - k * DAY, counted if: lastClaim < boundary <= reference
+        //     const lostDays = Math.max(
+        //         0,
+        //         Math.ceil((periodEnd - lastClaimOverall) / DAY_MS) -
+        //         Math.ceil((periodEnd - reference) / DAY_MS)
+        //     );
+        //     weeklyMaxXp = Math.max(0, WEEKLY_MAX_XP - lostDays * DAILY_XP);
+        // }
         // const weeklyXpTarget = weeklyMaxXp - (isLowXpPhase ? DAILY_XP : 0);
 
         // How many claims a member needs by now (can never exceed the number of boards).
