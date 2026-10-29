@@ -191,7 +191,7 @@
                 Claimed: stats.claimed,
                 Helped: stats.helped,
                 'Weekly XP': weeklyXp,
-                'Weekly Max': yesNo(weeklyXp >= weeklyXpTarget),
+                // 'Weekly Max': yesNo(weeklyXp >= weeklyXpTarget),
                 _last: stats.last, // internal only, used for sorting (not shown)
             };
         });
@@ -210,7 +210,8 @@
         const SORT_RULES = [
             yesFirst('Claimed Today'),
             yesFirst('Max Claimed'),
-            yesFirst('Weekly Max'),
+            // yesFirst('Weekly Max'),
+            highestFirst('Weekly XP'),
             yesFirst('Active Today'),
             highestFirst('Helped'),
             newestClaimFirst,
@@ -228,7 +229,8 @@
     // =========================================================
     // 5. UI
     // =========================================================
-    const COLUMNS = ['User', 'Active Today', 'Claimed Today', 'Claimed', 'Max Claimed', 'Helped', 'Weekly XP', 'Weekly Max'];
+    // const COLUMNS = ['User', 'Active Today', 'Claimed Today', 'Claimed', 'Max Claimed', 'Helped', 'Weekly XP', 'Weekly Max'];
+    const COLUMNS = ['User', 'Active Today', 'Claimed Today', 'Claimed', 'Max Claimed', 'Helped', 'Weekly XP'];
 
     const pad = (n) => String(n).padStart(2, '0'); // 5 -> "05"
     // Date/time as YYYY-MM-DD HH:MM (local time)
@@ -316,7 +318,7 @@
             'Max Claimed': countYes('Max Claimed'),
             Claimed: sum('Claimed'),
             Helped: sum('Helped'),
-            'Weekly Max': countYes('Weekly Max'),
+            // 'Weekly Max': countYes('Weekly Max'),
         };
         const sumRow = table.tHead.insertRow();
         sumRow.className = 'gcm-sum';
