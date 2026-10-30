@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         GeoGuessr Weekly Club Mission Overview
 // @namespace    https://www.geoguessr.com/
-// @version      2.0.4
+// @version      2.0.5
 // @description  Shows current status of the weekly mission progress per member
 // @author       Gorakel
 // @match        https://www.geoguessr.com/*
@@ -17,8 +17,8 @@
     // =========================================================
     // 1. Settings
     // =========================================================
-    const WEEKLY_MAX_XP = 280;       // XP a member can earn per week at most
-    const DAILY_XP = 20;             // XP a member gets per day
+    // const WEEKLY_MAX_XP = 280;       // XP a member can earn per week at most
+    // const DAILY_XP = 20;             // XP a member gets per day
     const DAY_MS = 24 * 3600 * 1000; // One day in milliseconds
 
     // =========================================================
