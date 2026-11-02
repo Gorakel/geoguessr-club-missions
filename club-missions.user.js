@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         GeoGuessr Weekly Club Mission Overview
 // @namespace    https://www.geoguessr.com/
-// @version      2.0.6
+// @version      2.0.7
 // @description  Shows current status of the weekly mission progress per member
 // @author       Gorakel
 // @match        https://www.geoguessr.com/*
@@ -109,7 +109,7 @@
             return statsByUserId.get(userId);
         };
 
-        // let lastClaimOverall = null; // newest claim of ANY user (needed for the weekly max below)
+        let lastClaimOverall = null; // newest claim of ANY user (needed for the weekly max below)
 
         for (const b of boards) {
             for (const tile of b.tiles ?? []) {
@@ -122,7 +122,7 @@
 
                 // Remember the newest claim time across all tiles.
                 const claimedAt = parseDate(tile.claimedAt);
-                // lastClaimOverall = latest(lastClaimOverall, claimedAt);
+                lastClaimOverall = latest(lastClaimOverall, claimedAt);
 
                 // Count the claim for the user who claimed the tile.
                 if (!tile.claimedBy) continue;
