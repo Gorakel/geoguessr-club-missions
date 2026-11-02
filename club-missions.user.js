@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         GeoGuessr Weekly Club Mission Overview
 // @namespace    https://www.geoguessr.com/
-// @version      2.0.5
+// @version      2.0.6
 // @description  Shows current status of the weekly mission progress per member
 // @author       Gorakel
 // @match        https://www.geoguessr.com/*
@@ -172,7 +172,13 @@
         // const weeklyXpTarget = weeklyMaxXp - (isLowXpPhase ? DAILY_XP : 0);
 
         // How many claims a member needs by now (can never exceed the number of boards).
-        const requiredClaims = Math.min(expectedClaims(currentDayStart), boards.length);
+        let requiredClaims = 0;
+        if (board.allBoardsCleared) {
+            requiredClaims = Math.min(expectedClaims(currentDayStart), boards.length);
+        } else {
+            requiredClaims = expectedClaims(currentDayStart);
+        };
+
 
         // ---------------------------------------------------------
         // Step 4: build one row per member
