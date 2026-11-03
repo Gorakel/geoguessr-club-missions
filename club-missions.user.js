@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         GeoGuessr Weekly Club Mission Overview
 // @namespace    https://www.geoguessr.com/
-// @version      2.0.8
+// @version      2.1.0
 // @description  Shows current status of the weekly mission progress per member
 // @author       Gorakel
 // @match        https://www.geoguessr.com/*
@@ -110,6 +110,7 @@
         };
 
         let lastClaimOverall = null; // newest claim of ANY user (needed for the weekly max below)
+        let unclaimedTiles = 0; // tiles nobody has claimed yet (0 = nothing left to claim)
 
         for (const b of boards) {
             for (const tile of b.tiles ?? []) {
@@ -125,7 +126,8 @@
                 lastClaimOverall = latest(lastClaimOverall, claimedAt);
 
                 // Count the claim for the user who claimed the tile.
-                if (!tile.claimedBy) continue;
+                // if (!tile.claimedBy) continue;
+                if (!tile.claimedBy) { unclaimedTiles++; continue; }
                 const stats = statsOf(tile.claimedBy);
                 stats.claimed++;
                 stats.last = latest(stats.last, claimedAt); // newest claim of this user
@@ -180,10 +182,21 @@
         // };
 
         // How many claims a member needs by now.
-        // Capped by the number of boards that exist: if all boards are already claimed
-        // (but not yet completed), or all boards were finished before day 7,
-        // nobody can claim more, so nobody may be required to.
-        const requiredClaims = Math.min(expectedClaims(currentDayStart), boards.length);
+        let requiredClaims = expectedClaims(currentDayStart);
+
+        // If every tile is already claimed (new day started, boards not yet completed,
+        // or all boards finished early), nobody can claim more. Then the best possible
+        // result is what the top member actually reached, so nobody can be required
+        // to have more than that.
+        if (unclaimedTiles === 0) {
+            const mostClaims = Math.max(0, ...[...statsByUserId.values()].map((s) => s.claimed));
+            requiredClaims = Math.min(requiredClaims, mostClaims);
+        };
+
+        // True if nothing could be claimed today: all tiles were already claimed
+        // before the current day started (so nobody had a chance today).
+        const nothingClaimableToday =
+            unclaimedTiles === 0 && (!lastClaimOverall || lastClaimOverall < currentDayStart);
 
         // ---------------------------------------------------------
         // Step 4: build one row per member
@@ -197,7 +210,11 @@
             return {
                 User: m.user?.nick || '?',
                 'Active Today': yesNo(lastActive && lastActive > currentDayStart),
-                'Claimed Today': yesNo(stats.last && stats.last > currentDayStart),
+                // 'Claimed Today': yesNo(stats.last && stats.last > currentDayStart),
+                // Old: 'Claimed Today': yesNo(stats.last && stats.last > currentDayStart),
+                'Claimed Today': stats.last && stats.last > currentDayStart
+                    ? 'Yes'
+                    : nothingClaimableToday ? 'n/a' : 'No', // n/a = not claimed, but also nothing was possible
                 'Max Claimed': yesNo(stats.claimed >= requiredClaims),
                 Claimed: stats.claimed,
                 Helped: stats.helped,
@@ -270,6 +287,7 @@
             #gcm-box th,#gcm-box td{padding:5px 10px;border-bottom:1px solid #333;text-align:left;white-space:nowrap}
             #gcm-box th{cursor:pointer;position:sticky;top:0;z-index:3;background:#25254a}
             #gcm-box td.yes{color:#6fdc8c}#gcm-box td.no{color:#ff8a8a}
+            #gcm-box td.na{color:#999}
             #gcm-box th{height:28px;box-sizing:border-box}
             #gcm-box tr.gcm-sum td{font-weight:700;background:#1f1f3d;border-bottom:2px solid #7950e5;position:sticky;top:28px;z-index:2;height:28px;box-sizing:border-box}
         `;
@@ -316,6 +334,7 @@
                 td.textContent = formatCell(r[c]);
                 if (r[c] === 'Yes') td.className = 'yes';
                 if (r[c] === 'No') td.className = 'no';
+                if (r[c] === 'n/a') td.className = 'na';
             }
         }
 
