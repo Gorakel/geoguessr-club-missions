@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         GeoGuessr Weekly Club Mission Overview
 // @namespace    https://www.geoguessr.com/
-// @version      2.1.0
+// @version      2.1.1
 // @description  Shows current status of the weekly mission progress per member
 // @author       Gorakel
 // @match        https://www.geoguessr.com/*
@@ -221,6 +221,10 @@
                 'Weekly XP': weeklyXp,
                 // 'Weekly Max': yesNo(weeklyXp >= weeklyXpTarget),
                 _last: stats.last, // internal only, used for sorting (not shown)
+
+                // True if the member is below the target but has at least 50% of it
+                // (e.g. target 6: 3, 4 or 5 claims). Only used for coloring "Max Claimed".
+                _partialClaim: stats.claimed < requiredClaims && stats.claimed / requiredClaims >= 0.5,
             };
         });
 
@@ -288,6 +292,7 @@
             #gcm-box th{cursor:pointer;position:sticky;top:0;z-index:3;background:#25254a}
             #gcm-box td.yes{color:#6fdc8c}#gcm-box td.no{color:#ff8a8a}
             #gcm-box td.na{color:#999}
+            #gcm-box td.partial{color:#f0d264}
             #gcm-box th{height:28px;box-sizing:border-box}
             #gcm-box tr.gcm-sum td{font-weight:700;background:#1f1f3d;border-bottom:2px solid #7950e5;position:sticky;top:28px;z-index:2;height:28px;box-sizing:border-box}
         `;
@@ -335,6 +340,9 @@
                 if (r[c] === 'Yes') td.className = 'yes';
                 if (r[c] === 'No') td.className = 'no';
                 if (r[c] === 'n/a') td.className = 'na';
+
+                // "No" in Max Claimed turns yellow if 50-99% of the target was reached
+                if (c === 'Max Claimed' && r._partialClaim) td.className = 'partial';
             }
         }
 
