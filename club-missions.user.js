@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         GeoGuessr Weekly Club Mission Overview
 // @namespace    https://www.geoguessr.com/
-// @version      2.1.1
+// @version      2.1.2
 // @description  Shows current status of the weekly mission progress per member
 // @author       Gorakel
 // @match        https://www.geoguessr.com/*
@@ -224,7 +224,7 @@
 
                 // True if the member is below the target but has at least 50% of it
                 // (e.g. target 6: 3, 4 or 5 claims). Only used for coloring "Max Claimed".
-                _partialClaim: stats.claimed < requiredClaims && stats.claimed / requiredClaims >= 0.5,
+                _partialClaim: stats.claimed < requiredClaims && stats.claimed / requiredClaims >= 0.51,
             };
         });
 
