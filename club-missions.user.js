@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         GeoGuessr Weekly Club Mission Overview
 // @namespace    https://www.geoguessr.com/
-// @version      2.1.2
+// @version      2.1.3
 // @description  Shows current status of the weekly mission progress per member
 // @author       Gorakel
 // @match        https://www.geoguessr.com/*
@@ -240,10 +240,11 @@
         const newestClaimFirst = (a, b) => (b._last?.getTime() ?? 0) - (a._last?.getTime() ?? 0);
 
         const SORT_RULES = [
+            highestFirst('Weekly XP'),
             yesFirst('Claimed Today'),
             yesFirst('Max Claimed'),
+            highestFirst('Claimed'),
             // yesFirst('Weekly Max'),
-            highestFirst('Weekly XP'),
             yesFirst('Active Today'),
             highestFirst('Helped'),
             newestClaimFirst,
