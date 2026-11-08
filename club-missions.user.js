@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         GeoGuessr Weekly Club Mission Overview
 // @namespace    https://www.geoguessr.com/
-// @version      2.1.5
+// @version      2.1.6
 // @description  Shows current status of the weekly mission progress per member
 // @author       Gorakel
 // @match        https://www.geoguessr.com/*
@@ -222,9 +222,9 @@
                 // 'Weekly Max': yesNo(weeklyXp >= weeklyXpTarget),
                 _last: stats.last, // internal only, used for sorting (not shown)
 
-                // True if the member is below the target but has at least 51% of it
+                // True if the member is below the target but has at least more than 50 % of it
                 // (e.g. target 6: 3, 4 or 5 claims). Only used for coloring "Max Claimed".
-                _partialClaim: stats.claimed < requiredClaims && stats.claimed / requiredClaims >= 0.51,
+                _partialClaim: stats.claimed < requiredClaims && stats.claimed / requiredClaims > 0.5,
             };
         });
 
@@ -342,7 +342,7 @@
                 if (r[c] === 'No') td.className = 'no';
                 if (r[c] === 'n/a') td.className = 'na';
 
-                // "No" in Max Claimed turns yellow if 51-99% of the target was reached
+                // "No" in Max Claimed turns yellow if >50-99% of the target was reached
                 if (c === 'Max Claimed' && r._partialClaim) td.className = 'partial';
             }
         }
